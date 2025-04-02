@@ -123,6 +123,7 @@
 #include "storage/pg_shmem.h"
 #include "storage/pmsignal.h"
 #include "storage/proc.h"
+#include "storage/rpcclient.h"
 #include "tcop/tcopprot.h"
 #include "utils/builtins.h"
 #include "utils/datetime.h"
@@ -254,6 +255,7 @@ static pid_t StartupPID = 0,
 			AutoVacPID = 0,
 			PgArchPID = 0,
 			PgStatPID = 0,
+			MPSyncPID = 0,
 			SysLoggerPID = 0;
 
 /* Startup process's status */
@@ -436,7 +438,7 @@ static bool CreateOptsFile(int argc, char *argv[], char *fullprogname);
 static pid_t StartChildProcess(AuxProcType type);
 static void StartAutovacuumWorker(void);
 static void MaybeStartWalReceiver(void);
-static void InitPostmasterDeathWatchHandle(void);
+void InitPostmasterDeathWatchHandle(void);
 
 /*
  * Archiver is allowed to start up at the current postmaster state?
@@ -555,6 +557,7 @@ static void ShmemBackendArrayRemove(Backend *bn);
 #define StartCheckpointer()		StartChildProcess(CheckpointerProcess)
 #define StartWalWriter()		StartChildProcess(WalWriterProcess)
 #define StartWalReceiver()		StartChildProcess(WalReceiverProcess)
+#define StartMemPoolSynchronizer()	StartChildProcess(MemPoolSyncProcess)
 
 /* Macros to check exit status of a child process */
 #define EXIT_STATUS_0(st)  ((st) == 0)
@@ -572,12 +575,19 @@ int			postmaster_alive_fds[2] = {-1, -1};
 HANDLE		PostmasterHandle;
 #endif
 
+extern int IsRpcClient;
 /*
  * Postmaster main entry point
  */
 void
 PostmasterMain(int argc, char *argv[])
 {
+    char *pgRpcClient = getenv("RPC_CLIENT");
+
+    if(pgRpcClient != NULL) {
+        IsRpcClient = strtol(pgRpcClient, NULL, 10);
+    }
+
 	int			opt;
 	int			status;
 	char	   *userDoption = NULL;
@@ -1408,6 +1418,8 @@ PostmasterMain(int argc, char *argv[])
 
 	/* Some workers may be scheduled to start now */
 	maybe_start_bgworkers();
+	if(IsRpcClient > 1)
+		MPSyncPID = StartMemPoolSynchronizer();
 
 	status = ServerLoop();
 
@@ -6622,7 +6634,7 @@ pgwin32_deadchild_callback(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
  * Called once in the postmaster, so that child processes can subsequently
  * monitor if their parent is dead.
  */
-static void
+void
 InitPostmasterDeathWatchHandle(void)
 {
 #ifndef WIN32

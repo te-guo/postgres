@@ -239,6 +239,10 @@ extern bool XLOG_DEBUG;
 #define XLOG_MARK_UNIMPORTANT	0x02	/* record not important for durability */
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Checkpoint statistics */
 typedef struct CheckpointStatsData
 {
@@ -323,6 +327,7 @@ extern Size XLOGShmemSize(void);
 extern void XLOGShmemInit(void);
 extern void BootStrapXLOG(void);
 extern void LocalProcessControlFile(bool reset);
+extern XLogReaderState *XLogReaderAllocateForMemPool(void **private_data);
 extern void StartupXLOG(void);
 extern void ShutdownXLOG(int code, Datum arg);
 extern void InitXLOGAccess(void);
@@ -351,6 +356,20 @@ extern void XLogRequestWalReceiverReply(void);
 extern void assign_max_wal_size(int newval, void *extra);
 extern void assign_checkpoint_completion_target(double newval, void *extra);
 
+extern int	XLogPageRead(XLogReaderState *xlogreader, XLogRecPtr targetPagePtr,
+                    int reqLen, XLogRecPtr targetRecPtr, char *readBuf);
+
+// Use this file to initialize recovery TLI for wal_redo process
+extern void ReadControlFileTimeLine(void);
+
+extern uint64_t GetLogWrtResultLsn(void);
+extern void GetLogWrtResult(XLogRecPtr* Write, XLogRecPtr* Flush);
+extern void UpdateLogWrtResult(XLogRecPtr Write, XLogRecPtr Flush);
+extern void ParseXLogBlocksLsn(XLogReaderState *record, int recordBlockId);
+
+#ifdef __cplusplus
+}
+#endif
 /*
  * Routines to start, stop, and get status of a base backup.
  */

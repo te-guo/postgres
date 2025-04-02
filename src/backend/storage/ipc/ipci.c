@@ -44,7 +44,11 @@
 #include "storage/procsignal.h"
 #include "storage/sinvaladt.h"
 #include "storage/spin.h"
+#include "storage/rel_cache.h"
+#include "storage/builtin_shmht.h"
 #include "utils/snapmgr.h"
+#include "access/polar_logindex.h"
+#include "storage/GroundDB/mempool_shmem.h"
 
 /* GUCs */
 int			shared_memory_type = DEFAULT_SHARED_MEMORY_TYPE;
@@ -97,6 +101,8 @@ CreateSharedMemoryAndSemaphores(void)
 
 	if (!IsUnderPostmaster)
 	{
+	    printf("%s %d\n", __func__ , __LINE__);
+	    fflush(stdout);
 		PGShmemHeader *seghdr;
 		Size		size;
 		int			numSemas;
@@ -115,6 +121,7 @@ CreateSharedMemoryAndSemaphores(void)
 		 * need to be so careful during the actual allocation phase.
 		 */
 		size = 100000;
+		size = add_size(size, MemPoolClientShmemSize());
 		size = add_size(size, PGSemaphoreShmemSize(numSemas));
 		size = add_size(size, SpinlockSemaSize());
 		size = add_size(size, hash_estimate_size(SHMEM_INDEX_SIZE,
@@ -147,6 +154,10 @@ CreateSharedMemoryAndSemaphores(void)
 		size = add_size(size, BTreeShmemSize());
 		size = add_size(size, SyncScanShmemSize());
 		size = add_size(size, AsyncShmemSize());
+
+        size = add_size(size, RelSizeShmemSize()); // LWLock size
+        size = add_size(size, RelSizeTableShmemSize()); // Shared HashTable Size
+		size = add_size(size, polar_logindex_shmem_size(24, 0));
 #ifdef EXEC_BACKEND
 		size = add_size(size, ShmemBackendArraySize());
 #endif
@@ -211,13 +222,17 @@ CreateSharedMemoryAndSemaphores(void)
 	/*
 	 * Set up xlog, clog, and buffers
 	 */
+    RelSizeShmemInit();// Init LWLocks
+    InitRelSizeTable();// Init Shared Hash Table
 	XLOGShmemInit();
 	CLOGShmemInit();
 	CommitTsShmemInit();
 	SUBTRANSShmemInit();
 	MultiXactShmemInit();
+	MemPoolClientShmemInit();
 	InitBufferPool();
 
+    polar_logindex_shmem_init(24, 0);
 	/*
 	 * Set up lock manager
 	 */

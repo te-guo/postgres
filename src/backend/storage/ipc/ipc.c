@@ -30,6 +30,8 @@
 #include "storage/dsm.h"
 #include "storage/ipc.h"
 #include "tcop/tcopprot.h"
+#include "storage/rpcclient.h"
+#include "storage/GroundDB/mempool_client.h"
 
 
 /*
@@ -103,6 +105,10 @@ static int	on_proc_exit_index,
 void
 proc_exit(int code)
 {
+	proc_exit_MemPool();
+    printf("%s Start, pid = %d\n", __func__ , getpid());
+    fflush(stdout);
+    RpcTransportClose();
 	/* Clean up everything that must be cleaned up */
 	proc_exit_prepare(code);
 

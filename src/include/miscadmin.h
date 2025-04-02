@@ -307,6 +307,9 @@ extern void InitStandaloneProcess(const char *argv0);
 extern void SwitchToSharedLatch(void);
 extern void SwitchBackToLocalLatch(void);
 
+extern void
+InitPostmasterChild_Thread(void);
+
 typedef enum BackendType
 {
 	B_INVALID = 0,
@@ -323,6 +326,7 @@ typedef enum BackendType
 	B_ARCHIVER,
 	B_STATS_COLLECTOR,
 	B_LOGGER,
+	B_MP_SYNC,
 } BackendType;
 
 extern BackendType MyBackendType;
@@ -421,6 +425,7 @@ typedef enum
 	CheckpointerProcess,
 	WalWriterProcess,
 	WalReceiverProcess,
+	MemPoolSyncProcess,
 
 	NUM_AUXPROCTYPES			/* Must be last! */
 } AuxProcType;
